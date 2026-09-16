@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -18,7 +18,11 @@ const app = getApps().length > 0
   : (firebaseConfig.apiKey ? initializeApp(firebaseConfig) : null);
 
 const auth = app ? getAuth(app) : null as any;
-const db = app ? getFirestore(app) : null as any;
+// Use initializeFirestore with experimentalForceLongPolling to prevent "client is offline" errors
+// caused by ad-blockers or strict corporate firewalls blocking WebSockets.
+const db = app 
+  ? (getApps().length > 0 ? getFirestore(app) : initializeFirestore(app, { experimentalForceLongPolling: true })) 
+  : null as any;
 const storage = app ? getStorage(app) : null as any;
 
 export { app, auth, db, storage };
