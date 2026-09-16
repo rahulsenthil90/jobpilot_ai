@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import pdfParse from 'pdf-parse';
 
 export async function POST(request: Request) {
   try {
@@ -17,8 +16,10 @@ export async function POST(request: Request) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 2. Parse PDF to text
-    const pdfData = await pdfParse(buffer);
+    // 2. Parse PDF to text (dynamic import to fix Vercel CJS/ESM interop)
+    const pdfParseModule = await import('pdf-parse');
+    const pdfParse = pdfParseModule.default || pdfParseModule;
+    const pdfData = await (pdfParse as any)(buffer);
     const resumeText = pdfData.text;
 
     // 3. Initialize Gemini
