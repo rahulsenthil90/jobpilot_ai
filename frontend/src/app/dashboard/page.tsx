@@ -60,8 +60,26 @@ export default function DashboardPage() {
           profileCompletion: completionPercentage,
         }));
 
-        // Fetch application stats (mocked as 0 until Applications module is built)
-        // const appDocs = await getDocs(query(collection(db, "applications"), where("userId", "==", user.uid)));
+        // Fetch application stats
+        const appDocs = await getDocs(query(collection(db, "applications"), where("userId", "==", user.uid)));
+        
+        let appCount = 0;
+        let interviewCount = 0;
+
+        appDocs.forEach(doc => {
+          appCount++;
+          const data = doc.data();
+          if (data.status === "Interviewing") {
+            interviewCount++;
+          }
+        });
+
+        setStats(prev => ({
+          ...prev,
+          applications: appCount,
+          interviews: interviewCount,
+          profileCompletion: completionPercentage,
+        }));
         
       } catch (error) {
         console.error("Error fetching dashboard data", error);
