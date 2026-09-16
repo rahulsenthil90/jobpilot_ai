@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     const { userId, resumeId, fileUrl } = await request.json();
@@ -16,13 +18,7 @@ export async function POST(request: Request) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 2. Parse PDF to text (dynamic import to fix Vercel CJS/ESM interop)
-    const pdfParseModule = await import('pdf-parse');
-    const pdfParse = pdfParseModule.default || pdfParseModule;
-    const pdfData = await (pdfParse as any)(buffer);
-    const resumeText = pdfData.text;
-
-    // 3. Initialize Gemini
+    // 2. Initialize Gemini
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY is not configured');
@@ -30,10 +26,10 @@ export async function POST(request: Request) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    // 4. Prompt Gemini to extract structured data
+    // 3. Prompt Gemini with the PDF directly as inlineData
     const prompt = `
       You are an expert ATS (Applicant Tracking System) and HR recruiter. 
-      Analyze the following resume text and extract the information in JSON format.
+      Analyze the attached PDF resume and extract the information in JSON format.
       Return ONLY a raw JSON object with no markdown formatting or backticks.
       
       The JSON structure should be exactly:
@@ -46,12 +42,17 @@ export async function POST(request: Request) {
         "education": ["Degree 1", "Degree 2"],
         "roles": ["Role 1", "Role 2"]
       }
-
-      Resume Text:
-      ${resumeText}
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          data: buffer.toString('base64'),
+          mimeType: 'application/pdf',
+        },
+      },
+      prompt
+    ]);
     const responseText = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     
     let parsedData = {};
