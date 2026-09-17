@@ -68,6 +68,8 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
       }, 300);
 
       console.log("[Diagnostics] 1. Calling Firestore addDoc...");
+      console.log("[Diagnostics] Firebase DB instance exists:", !!db);
+      console.log("[Diagnostics] Firebase Project ID:", process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "MISSING!");
       // Save resume metadata to Firestore (no fileUrl since it's memory-only)
       const docRef = await addDoc(collection(db, "resumes"), {
         userId: user.uid,
