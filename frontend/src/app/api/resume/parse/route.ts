@@ -7,20 +7,18 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   console.log("🚀 [API] /api/resume/parse - Request received");
   try {
-    const formData = await request.formData();
-    const userId = formData.get('userId') as string;
-    const resumeId = formData.get('resumeId') as string;
-    const fileName = formData.get('fileName') as string;
-    const file = formData.get('file') as File;
+    const body = await request.json();
+    const { userId, resumeId, fileName, fileBase64 } = body;
 
-    if (!userId || !resumeId || !file || !fileName) {
+    if (!userId || !resumeId || !fileBase64 || !fileName) {
       console.log("❌ [API] Missing parameters");
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
     console.log(`📄 [API] Processing file: ${fileName} for user: ${userId}`);
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // fileBase64 looks like "data:application/pdf;base64,JVBERi..."
+    const base64Data = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64;
+    const buffer = Buffer.from(base64Data, 'base64');
 
     // 2. Initialize Gemini
     const apiKey = process.env.GEMINI_API_KEY;

@@ -81,17 +81,25 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
       setSuccess("Resume uploaded! Analyzing with AI...");
       ping("Resume uploaded successfully! Analyzing...");
 
-      // Prepare FormData
-      const formData = new FormData();
-      formData.append("userId", user.uid);
-      formData.append("resumeId", docRef.id);
-      formData.append("fileName", targetFile.name);
-      formData.append("file", targetFile);
+      // Convert File to Base64 to avoid Next.js request.formData() hanging bug
+      const fileToBase64 = (f: File): Promise<string> => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(f);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+      });
+      const base64File = await fileToBase64(targetFile);
 
       // Call API route to parse it using Gemini directly
       const apiRes = await fetch('/api/resume/parse', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          resumeId: docRef.id,
+          fileName: targetFile.name,
+          fileBase64: base64File
+        })
       });
       
       clearInterval(progressInterval);
