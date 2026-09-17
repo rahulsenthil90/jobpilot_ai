@@ -198,7 +198,8 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
         <h3 className="font-display font-semibold">Resume summary</h3>
         <Textarea 
           className="mt-3 min-h-32" 
-          defaultValue="Awaiting AI analysis. Once your resume is analyzed, a summary of your professional profile will appear here." 
+          readOnly
+          value={primaryResume?.parsedData?.executiveSummary || (primaryResume?.status === 'analyzed' ? 'No summary generated.' : 'Awaiting AI analysis. Once your resume is analyzed, a summary of your professional profile will appear here.')} 
         />
         
         {resumes.length > 1 && (
@@ -219,17 +220,21 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
         )}
       </section>
 
-      <aside className="rounded-lg border border-border bg-card p-6">
+      <aside className="rounded-lg border border-border bg-card p-6 h-fit">
         <div className="flex items-center justify-between">
           <h2 className="font-display font-semibold">Resume score</h2>
           <span className="font-display text-xl font-semibold text-primary">
-            {primaryResume?.status === "analyzed" ? "88%" : "N/A"}
+            {primaryResume?.status === "analyzed" ? `${primaryResume?.resumeScore || 0}%` : "N/A"}
           </span>
         </div>
-        <Progress value={primaryResume?.status === "analyzed" ? 88 : 0} className="mt-3" />
+        <Progress value={primaryResume?.status === "analyzed" ? (primaryResume?.resumeScore || 0) : 0} className="mt-3" />
+        
         <div className="mt-6 space-y-4">
-          {["Clear impact metrics", "Strong action verbs", "Relevant design skills"].map(item => (
-            <div key={item} className="flex gap-2 text-sm text-muted-foreground">
+          {(primaryResume?.scoreFeedback?.length > 0 
+            ? primaryResume.scoreFeedback 
+            : ["Clear impact metrics", "Strong action verbs", "Relevant design skills"]
+          ).map((item: string, idx: number) => (
+            <div key={idx} className="flex gap-2 text-sm text-muted-foreground">
               <span className={`grid size-5 shrink-0 place-items-center rounded-full ${primaryResume?.status === "analyzed" ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"}`}>
                 <Check className="size-3" />
               </span>
