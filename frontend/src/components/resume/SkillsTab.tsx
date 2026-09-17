@@ -1,10 +1,12 @@
-"use client";
-
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Trash2 } from "lucide-react";
 
 type Skill = {
   id: string;
@@ -76,93 +78,86 @@ export default function SkillsTab() {
   };
 
   if (loading) {
-    return <div className="text-gray-500 py-8 text-center">Loading skills...</div>;
+    return <div className="text-muted-foreground py-8 text-center">Loading skills...</div>;
   }
 
-  // Group skills by category
   const groupedSkills = CATEGORIES.reduce((acc, cat) => {
     acc[cat] = skills.filter(s => s.category === cat);
     return acc;
   }, {} as Record<string, Skill[]>);
 
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-gray-900">Skills</h2>
-        <p className="text-sm text-gray-500">Manage your skills and proficiency levels.</p>
-      </div>
-
-      <div className="bg-gray-50 p-5 rounded-lg border border-gray-200 mb-8 max-w-4xl">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Add New Skill</h3>
-        <form onSubmit={handleAddSkill} className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1 w-full">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Skill Name</label>
-            <input
-              type="text"
+    <div className="space-y-6">
+      <section className="rounded-lg border border-border bg-card p-6">
+        <h2 className="font-display text-lg font-semibold">Core skills</h2>
+        <p className="mt-1 text-sm text-muted-foreground">These help JobPilot tailor your resume and recommendations.</p>
+        
+        <form onSubmit={handleAddSkill} className="mt-6 flex flex-col md:flex-row gap-4 items-end bg-muted/30 p-4 rounded-md border border-border/50">
+          <div className="flex-1 w-full grid gap-2">
+            <Label>Skill Name</Label>
+            <Input
               required
               placeholder="e.g. Requirement Gathering"
               value={newSkill.name}
               onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="w-full md:w-48">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
-            <select
-              value={newSkill.category}
-              onChange={(e) => setNewSkill({ ...newSkill, category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+          <div className="w-full md:w-48 grid gap-2">
+            <Label>Category</Label>
+            <Select value={newSkill.category} onValueChange={(val) => setNewSkill({ ...newSkill, category: val })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="w-full md:w-40">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Proficiency</label>
-            <select
-              value={newSkill.proficiency}
-              onChange={(e) => setNewSkill({ ...newSkill, proficiency: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              {PROFICIENCIES.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
+          <div className="w-full md:w-40 grid gap-2">
+            <Label>Proficiency</Label>
+            <Select value={newSkill.proficiency} onValueChange={(val) => setNewSkill({ ...newSkill, proficiency: val })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PROFICIENCIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           <Button type="submit" disabled={adding} className="w-full md:w-auto">
             {adding ? "Adding..." : "Add"}
           </Button>
         </form>
-      </div>
+      </section>
 
-      <div className="space-y-8 max-w-4xl">
+      <div className="space-y-6">
         {CATEGORIES.map(category => {
           const categorySkills = groupedSkills[category];
           if (categorySkills.length === 0) return null;
 
           return (
-            <div key={category}>
-              <h3 className="text-md font-semibold text-gray-900 border-b border-gray-200 pb-2 mb-4">{category}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <section key={category} className="rounded-lg border border-border bg-card p-6">
+              <h3 className="font-display text-base font-semibold border-b border-border pb-3 mb-4">{category}</h3>
+              <div className="flex flex-wrap gap-2">
                 {categorySkills.map(skill => (
-                  <div key={skill.id} className="border border-gray-200 rounded-md p-3 flex justify-between items-center bg-white shadow-sm hover:border-blue-300 transition-colors">
-                    <div>
-                      <p className="font-medium text-gray-900 text-sm">{skill.name}</p>
-                      <p className="text-xs text-gray-500">{skill.proficiency}</p>
-                    </div>
-                    <button 
+                  <div key={skill.id} className="group relative flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium hover:border-primary/50 transition-colors">
+                    <span className="flex flex-col">
+                      <span>{skill.name}</span>
+                      <span className="text-[10px] uppercase text-muted-foreground tracking-wider">{skill.proficiency}</span>
+                    </span>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="size-5 ml-1 opacity-50 hover:opacity-100 hover:text-destructive hover:bg-destructive/10" 
                       onClick={() => handleRemoveSkill(skill.id)}
-                      className="text-gray-400 hover:text-red-500 transition-colors"
-                      title="Remove skill"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
+                      <Trash2 className="size-3" />
+                    </Button>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           );
         })}
 
         {skills.length === 0 && (
-          <div className="text-center py-10 text-gray-500 border border-dashed border-gray-300 rounded-lg">
+          <div className="text-center py-10 text-muted-foreground border border-dashed border-border rounded-lg">
             No skills added yet. Use the form above to add your first skill.
           </div>
         )}

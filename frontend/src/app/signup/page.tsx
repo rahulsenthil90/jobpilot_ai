@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -13,7 +14,14 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const { user } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (user) {
+      router.push("/dashboard");
+    }
+  }, [user, router]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,8 +35,6 @@ export default function SignupPage() {
         name: name,
         createdAt: new Date().toISOString()
       });
-      
-      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to create an account");
     }
@@ -50,8 +56,6 @@ export default function SignupPage() {
           createdAt: new Date().toISOString()
         });
       }
-      
-      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to sign up with Google");
     }

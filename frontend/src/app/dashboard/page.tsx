@@ -1,15 +1,19 @@
 "use client";
 
-import AppLayout from "@/components/layout/AppLayout";
+import Link from "next/link";
+import AppLayout, { WorkspaceHeader, Notice } from "@/components/layout/AppLayout";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
-import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { BriefcaseBusiness, Check, ChevronRight, FileText, Plus, Sparkles, WandSparkles } from "lucide-react";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const [customName, setCustomName] = useState("");
+  const [notice, setNotice] = useState("");
+  const [recentApps, setRecentApps] = useState<any[]>([]);
   
   // Extract first name or fallback to email prefix
   const displayName = customName || (user?.displayName 
@@ -32,6 +36,11 @@ export default function DashboardPage() {
     { name: "Preferences", done: false },
   ]);
 
+  const ping = (text: string) => {
+    setNotice(text);
+    window.setTimeout(() => setNotice(""), 2200);
+  };
+
   useEffect(() => {
     async function fetchDashboardData() {
       if (!user) return;
@@ -43,7 +52,6 @@ export default function DashboardPage() {
 
         const profileData = profileDoc.exists() ? profileDoc.data() : {};
         
-        // Update displayName if profile has a name
         if (profileData.name) {
           setCustomName(profileData.name.split(" ")[0]);
         }
@@ -52,8 +60,8 @@ export default function DashboardPage() {
           { name: "Personal Details", done: !!profileData.name && !!profileData.email },
           { name: "Resume", done: hasResume },
           { name: "Experience", done: !!profileData.experience },
-          { name: "Education", done: false }, // to be implemented with subcollections later
-          { name: "Certifications", done: false }, // to be implemented
+          { name: "Education", done: false },
+          { name: "Certifications", done: false },
           { name: "Preferences", done: !!profileData.targetRoles && !!profileData.preferredLocations },
         ];
 
@@ -61,16 +69,13 @@ export default function DashboardPage() {
         const completionPercentage = Math.round((completedCount / steps.length) * 100);
 
         setCompletionSteps(steps);
-        setStats(prev => ({
-          ...prev,
-          profileCompletion: completionPercentage,
-        }));
 
         // Fetch application stats
         const appDocs = await getDocs(query(collection(db, "applications"), where("userId", "==", user.uid)));
         
         let appCount = 0;
         let interviewCount = 0;
+        let apps: any[] = [];
 
         appDocs.forEach(doc => {
           appCount++;
@@ -78,7 +83,12 @@ export default function DashboardPage() {
           if (data.status === "Interviewing") {
             interviewCount++;
           }
+          apps.push({ id: doc.id, ...data });
         });
+
+        // Sort apps by date
+        apps.sort((a, b) => b.dateApplied.toMillis() - a.dateApplied.toMillis());
+        setRecentApps(apps.slice(0, 3));
 
         setStats(prev => ({
           ...prev,
@@ -94,93 +104,146 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [user]);
 
+  const formatAge = (timestamp: any) => {
+    if (!timestamp) return "";
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const days = Math.floor((new Date().getTime() - date.getTime()) / (1000 * 3600 * 24));
+    if (days === 0) return "Applied today";
+    if (days === 1) return "Applied 1d ago";
+    return `Applied ${days}d ago`;
+  };
+
   return (
     <AppLayout>
-      <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
-        
-        {/* Header section */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-            Good evening, {displayName} 👋
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Here's your application profile at a glance.
-          </p>
-        </div>
-
-        {/* Profile Completion Card */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Profile Completion</h2>
-            <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
-              {stats.profileCompletion}%
-            </span>
+      <Notice>{notice}</Notice>
+      <WorkspaceHeader 
+        title={`Good morning, ${displayName}.`} 
+        description={stats.interviews > 0 ? `You have ${stats.interviews} interviews in your pipeline.` : "Track applications and prepare for interviews."} 
+      />
+      
+      <div className="grid grid-cols-12 gap-4 lg:gap-6">
+        <section className="dashboard-enter col-span-12 flex min-h-70 flex-col justify-between rounded-lg bg-primary p-6 text-primary-foreground lg:col-span-8 lg:p-8">
+          <div>
+            <span className="inline-flex rounded-sm bg-primary-foreground/15 px-2 py-1 text-xs font-semibold uppercase">Priority task</span>
+            <h2 className="mt-4 max-w-2xl font-display text-2xl font-semibold leading-tight sm:text-3xl">Complete your profile</h2>
+            <p className="mt-3 max-w-2xl text-sm text-primary-foreground/80 sm:text-base">A complete profile allows our AI to tailor your resumes and cover letters perfectly to each job description.</p>
           </div>
-          
-          <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
-            <div 
-              className="bg-blue-600 h-2 rounded-full transition-all duration-500" 
-              style={{ width: `${stats.profileCompletion}%` }}
-            ></div>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button variant="default" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90" asChild>
+              <Link href="/resume">Update profile <ChevronRight className="ml-1 h-4 w-4" /></Link>
+            </Button>
+            <Button variant="outline" className="border-primary-foreground/30 hover:bg-primary-foreground/10 text-primary-foreground" onClick={() => ping("Feature coming soon")}>View recommendations</Button>
           </div>
+        </section>
 
-          <p className="text-gray-600 text-sm mb-4">
-            {stats.profileCompletion === 100 
-              ? "Your profile is fully complete! You're ready to start applying." 
-              : "You're almost ready to start applying."}
-          </p>
+        <section className="dashboard-enter col-span-12 flex flex-col rounded-lg border border-border bg-card p-6 lg:col-span-4">
+          <h2 className="font-display text-lg font-semibold">Profile strength</h2>
+          <div className="mx-auto mt-6 grid size-32 place-items-center rounded-full border-8 border-secondary shadow-[inset_0_0_0_4px_var(--primary)]">
+            <span className="font-display text-2xl font-semibold">{stats.profileCompletion}%</span>
+          </div>
+          <div className="mt-6 flex justify-between text-xs font-semibold">
+            <span>Certifications</span>
+            <span className="text-primary">Add +15%</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full bg-primary transition-all duration-500" style={{ width: `${stats.profileCompletion}%` }} />
+          </div>
+          <Button variant="secondary" className="mt-6 w-full" asChild>
+            <Link href="/resume">Complete profile</Link>
+          </Button>
+        </section>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-            {completionSteps.map((step) => (
-              <div key={step.name} className="flex items-center gap-2 text-sm">
-                {step.done ? (
-                  <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                ) : (
-                  <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                )}
-                <span className={step.done ? "text-gray-900" : "text-gray-500"}>{step.name}</span>
+        <section className="col-span-12 grid grid-cols-2 gap-4 lg:col-span-4">
+          <div className="rounded-lg border border-border bg-card p-5">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">Active apps</div>
+            <div className="mt-1 font-display text-3xl font-semibold">{stats.applications}</div>
+          </div>
+          <div className="rounded-lg border border-border bg-card p-5">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">Interviews</div>
+            <div className="mt-1 font-display text-3xl font-semibold">{stats.interviews}</div>
+          </div>
+        </section>
+
+        <section className="col-span-12 row-span-2 rounded-lg border border-border bg-card p-5 sm:p-6 lg:col-span-8">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 className="font-display text-lg font-semibold">Recent applications</h2>
+            <Button variant="link" asChild className="px-0">
+              <Link href="/applications">View all activity</Link>
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {recentApps.length > 0 ? recentApps.map(app => (
+              <Button key={app.id} variant="outline" asChild className="h-auto w-full justify-start whitespace-normal p-0 hover:bg-muted/50">
+                <Link href="/applications" className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 p-3 text-left sm:gap-4 sm:p-4">
+                  <div className="grid size-10 place-items-center rounded-sm bg-secondary text-[10px] font-bold text-secondary-foreground uppercase">
+                    {app.companyName.substring(0, 3)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold sm:text-base">{app.position}</div>
+                    <div className="truncate text-xs text-muted-foreground">{app.companyName} {app.location ? `· ${app.location}` : ''}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="rounded-sm bg-accent px-2 py-1 text-[10px] font-bold uppercase text-accent-foreground inline-block">
+                      {app.status}
+                    </div>
+                    <div className="mt-1 hidden text-xs text-muted-foreground sm:block">
+                      {formatAge(app.dateApplied)}
+                    </div>
+                  </div>
+                </Link>
+              </Button>
+            )) : (
+              <div className="py-8 text-center text-sm text-muted-foreground border-2 border-dashed border-border rounded-lg">
+                No applications yet. Start tracking your job search!
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="col-span-12 rounded-lg border border-border bg-card p-6 lg:col-span-4">
+          <h2 className="mb-5 font-display text-lg font-semibold">Quick actions</h2>
+          <div className="space-y-3">
+            <Button className="w-full justify-start" asChild>
+              <Link href="/applications"><Plus className="mr-2 h-4 w-4" />Track new application</Link>
+            </Button>
+            <Button variant="outline" className="w-full justify-start" asChild>
+              <Link href="/resume"><WandSparkles className="mr-2 h-4 w-4" />AI resume analysis</Link>
+            </Button>
+            <Button variant="outline" className="w-full justify-start" onClick={() => ping("Cover letter generator coming soon!")}>
+              <FileText className="mr-2 h-4 w-4" />Generate cover letter
+            </Button>
+          </div>
+        </section>
+
+        <section className="col-span-12 rounded-lg border border-primary/25 bg-accent/60 p-5 lg:col-span-4">
+          <div className="flex gap-3">
+            <div className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
+              <Sparkles className="size-4" />
+            </div>
+            <div>
+              <h2 className="font-display text-sm font-semibold">AI insight</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Your tailored resumes receive 32% more responses.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="col-span-12 rounded-lg border border-border bg-card p-5 lg:col-span-8">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {completionSteps.filter(s => s.done).slice(0, 3).map((item, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm font-medium">
+                <span className="grid size-5 place-items-center rounded-full bg-secondary text-secondary-foreground">
+                  <Check className="size-3" />
+                </span>
+                {item.name} completed
               </div>
             ))}
+            {completionSteps.filter(s => s.done).length === 0 && (
+              <div className="col-span-3 text-sm text-muted-foreground italic">
+                Complete your profile sections to see them checked off here.
+              </div>
+            )}
           </div>
-
-          <Button variant="outline" className="w-full sm:w-auto">Complete Profile</Button>
-        </div>
-
-        {/* Dashboard Statistics */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center">
-            <h3 className="text-gray-500 text-sm font-medium mb-1">Applications</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.applications}</p>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center">
-            <h3 className="text-gray-500 text-sm font-medium mb-1">Interviews</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.interviews}</p>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center">
-            <h3 className="text-gray-500 text-sm font-medium mb-1">Saved Jobs</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.savedJobs}</p>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center">
-            <h3 className="text-gray-500 text-sm font-medium mb-1">Profile</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.profileCompletion}%</p>
-          </div>
-        </div>
-
-        {/* Recent Applications */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Applications</h2>
-          </div>
-          <div className="p-8 text-center text-gray-500">
-            <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-            </svg>
-            <p>You haven't added any applications yet.</p>
-          </div>
-          <div className="bg-gray-50 p-4 border-t border-gray-200 text-center">
-            <Button variant="link" className="text-blue-600">View All Applications</Button>
-          </div>
-        </div>
+        </section>
 
       </div>
     </AppLayout>
