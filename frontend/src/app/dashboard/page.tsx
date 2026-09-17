@@ -9,11 +9,12 @@ import { db } from "@/lib/firebase";
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [customName, setCustomName] = useState("");
   
   // Extract first name or fallback to email prefix
-  const displayName = user?.displayName 
+  const displayName = customName || (user?.displayName 
     ? user.displayName.split(" ")[0] 
-    : user?.email?.split("@")[0] || "there";
+    : user?.email?.split("@")[0] || "there");
 
   const [stats, setStats] = useState({
     applications: 0,
@@ -41,6 +42,11 @@ export default function DashboardPage() {
         const hasResume = !resumeDocs.empty;
 
         const profileData = profileDoc.exists() ? profileDoc.data() : {};
+        
+        // Update displayName if profile has a name
+        if (profileData.name) {
+          setCustomName(profileData.name.split(" ")[0]);
+        }
         
         const steps = [
           { name: "Personal Details", done: !!profileData.name && !!profileData.email },
