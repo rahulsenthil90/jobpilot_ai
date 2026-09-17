@@ -45,6 +45,7 @@ export async function POST(request: Request) {
         "linkedin": "LinkedIn URL",
         "github": "GitHub URL",
         "portfolio": "Portfolio URL",
+        "executiveSummary": "A 3-4 sentence professional summary of the candidate's experience and value proposition.",
         "skills": ["Skill 1", "Skill 2", "Skill 3"],
         "resumeScore": 85,
         "scoreFeedback": ["Strong action verbs used", "Missing quantified metrics in experience"],
