@@ -6,16 +6,17 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const { userId, resumeId, fileUrl } = await request.json();
+    const formData = await request.formData();
+    const userId = formData.get('userId') as string;
+    const resumeId = formData.get('resumeId') as string;
+    const fileName = formData.get('fileName') as string;
+    const file = formData.get('file') as File;
 
-    if (!userId || !resumeId || !fileUrl) {
+    if (!userId || !resumeId || !file || !fileName) {
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
-    // 1. Download the PDF from Firebase Storage URL
-    const response = await fetch(fileUrl);
-    if (!response.ok) throw new Error('Failed to fetch resume file');
-    const arrayBuffer = await response.arrayBuffer();
+    const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
     // 2. Initialize Gemini

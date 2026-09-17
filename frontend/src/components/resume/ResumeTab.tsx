@@ -61,65 +61,51 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
     setSuccess("");
 
     try {
-      const storageRef = ref(storage, `resumes/${user.uid}/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      // Simulate progress for UI
+      const progressInterval = setInterval(() => {
+        setProgress(p => (p < 90 ? p + 10 : p));
+      }, 300);
 
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          setProgress(progress);
-        },
-        (error) => {
-          console.error("Upload failed", error);
-          setError("Upload failed. Please try again.");
-          setUploading(false);
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          
-          // Save resume metadata to Firestore
-          const docRef = await addDoc(collection(db, "resumes"), {
-            userId: user.uid,
-            fileName: file.name,
-            fileUrl: downloadURL,
-            uploadedAt: new Date().toISOString(),
-            status: "pending_analysis",
-            isPrimary: resumes.length === 0 // Make first uploaded primary
-          });
+      // Save resume metadata to Firestore (no fileUrl since it's memory-only)
+      const docRef = await addDoc(collection(db, "resumes"), {
+        userId: user.uid,
+        fileName: file.name,
+        fileUrl: "", 
+        uploadedAt: new Date().toISOString(),
+        status: "pending_analysis",
+        isPrimary: resumes.length === 0
+      });
 
-          setResumes([{ id: docRef.id, fileName: file.name, fileUrl: downloadURL, uploadedAt: new Date().toISOString(), isPrimary: resumes.length === 0, status: "pending_analysis" }, ...resumes]);
-          setSuccess("Resume uploaded! Analyzing with AI...");
-          ping("Resume uploaded successfully!");
-          setUploading(false);
-          setFile(null);
-          setProgress(0);
+      setResumes([{ id: docRef.id, fileName: file.name, fileUrl: "", uploadedAt: new Date().toISOString(), isPrimary: resumes.length === 0, status: "pending_analysis" }, ...resumes]);
+      setSuccess("Resume uploaded! Analyzing with AI...");
+      ping("Resume uploaded successfully! Analyzing...");
 
-          // Call API route to parse it using Gemini
-          try {
-            const apiRes = await fetch('/api/resume/parse', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: user.uid,
-                resumeId: docRef.id,
-                fileUrl: downloadURL
-              })
-            });
-            const data = await apiRes.json();
-            if (data.success) {
-              setSuccess("Resume successfully parsed and added to your profile!");
-              ping("AI Analysis complete");
-              // update status in UI
-              setResumes(prev => prev.map(r => r.id === docRef.id ? { ...r, status: "analyzed" } : r));
-            } else {
-              setError(data.error || "Failed to parse resume.");
-            }
-          } catch (e) {
-            setError("Error communicating with AI parser.");
-          }
-        }
-      );
+      // Prepare FormData
+      const formData = new FormData();
+      formData.append("userId", user.uid);
+      formData.append("resumeId", docRef.id);
+      formData.append("fileName", file.name);
+      formData.append("file", file);
+
+      // Call API route to parse it using Gemini directly
+      const apiRes = await fetch('/api/resume/parse', {
+        method: 'POST',
+        body: formData
+      });
+      
+      clearInterval(progressInterval);
+      setProgress(100);
+      setUploading(false);
+      setFile(null);
+
+      const data = await apiRes.json();
+      if (data.success) {
+        setSuccess("Resume successfully parsed and added to your profile!");
+        ping("AI Analysis complete");
+        setResumes(prev => prev.map(r => r.id === docRef.id ? { ...r, status: "analyzed", parsedData: data.parsedData, resumeScore: data.parsedData.resumeScore, scoreFeedback: data.parsedData.scoreFeedback } : r));
+      } else {
+        setError(data.error || "Failed to parse resume.");
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || "An error occurred");
@@ -158,9 +144,11 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
                     <span><Upload className="mr-2 h-4 w-4" /> Replace file</span>
                   </Button>
                 </label>
-                <Button variant="secondary" onClick={() => { ping("Resume opened for review"); window.open(primaryResume.fileUrl, '_blank'); }}>
-                  <FileCheck2 className="mr-2 h-4 w-4" /> Preview
-                </Button>
+                {primaryResume.fileUrl && (
+                  <Button variant="secondary" onClick={() => { ping("Resume opened for review"); window.open(primaryResume.fileUrl, '_blank'); }}>
+                    <FileCheck2 className="mr-2 h-4 w-4" /> Preview
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -212,7 +200,9 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
                     <FileText className="size-4 shrink-0 text-muted-foreground" />
                     <span className="truncate text-sm">{r.fileName}</span>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => window.open(r.fileUrl, '_blank')}>View</Button>
+                  {r.fileUrl && (
+                    <Button variant="ghost" size="sm" onClick={() => window.open(r.fileUrl, '_blank')}>View</Button>
+                  )}
                 </div>
               ))}
             </div>
