@@ -67,6 +67,7 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
         setProgress(p => (p < 90 ? p + 10 : p));
       }, 300);
 
+      console.log("[Diagnostics] 1. Calling Firestore addDoc...");
       // Save resume metadata to Firestore (no fileUrl since it's memory-only)
       const docRef = await addDoc(collection(db, "resumes"), {
         userId: user.uid,
@@ -77,6 +78,7 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
         isPrimary: resumes.length === 0
       });
 
+      console.log("[Diagnostics] 2. addDoc succeeded! Converting file to Base64...");
       setResumes([{ id: docRef.id, fileName: targetFile.name, fileUrl: "", uploadedAt: new Date().toISOString(), isPrimary: resumes.length === 0, status: "pending_analysis" }, ...resumes]);
       setSuccess("Resume uploaded! Analyzing with AI...");
       ping("Resume uploaded successfully! Analyzing...");
@@ -90,6 +92,7 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
       });
       const base64File = await fileToBase64(targetFile);
 
+      console.log("[Diagnostics] 3. File converted! Sending fetch request to /api/resume/parse...");
       // Call API route to parse it using Gemini directly
       const apiRes = await fetch('/api/resume/parse', {
         method: 'POST',
@@ -102,12 +105,14 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
         })
       });
       
+      console.log("[Diagnostics] 4. Fetch returned! Parsing JSON response...");
       clearInterval(progressInterval);
       setProgress(100);
       setUploading(false);
       setFile(null);
 
       const data = await apiRes.json();
+      console.log("[Diagnostics] 5. Complete!", data);
       if (data.success) {
         setSuccess("Resume successfully parsed and added to your profile!");
         ping("AI Analysis complete");
@@ -116,7 +121,7 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
         setError(data.error || "Failed to parse resume.");
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("[Diagnostics] ERROR CAUGHT!", err);
       setError(err.message || "An error occurred");
       setUploading(false);
     }
