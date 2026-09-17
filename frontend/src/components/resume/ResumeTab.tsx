@@ -138,20 +138,22 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
                   id="resume-upload-replace"
                   className="hidden"
                   accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onClick={(e) => { (e.target as HTMLInputElement).value = "" }}
                   onChange={(e) => { 
                     handleFileChange(e); 
-                    if (e.target.files && e.target.files[0]) {
-                      const file = e.target.files[0];
-                      setTimeout(() => handleUpload(file), 100); 
-                    }
                   }}
                 />
                 <label htmlFor="resume-upload-replace">
                   <Button variant="outline" asChild onClick={() => ping("Choose a new resume file")}>
-                    <span><Upload className="mr-2 h-4 w-4" /> Replace file</span>
+                    <span><Upload className="mr-2 h-4 w-4" /> {file ? "Change selected file" : "Replace file"}</span>
                   </Button>
                 </label>
-                {primaryResume.fileUrl && (
+                {file && (
+                  <Button onClick={() => handleUpload()} disabled={uploading}>
+                    {uploading ? `Uploading & Analyzing ${progress}%` : `Upload & Analyze ${file.name}`}
+                  </Button>
+                )}
+                {!file && primaryResume.fileUrl && (
                   <Button variant="secondary" onClick={() => { ping("Resume opened for review"); window.open(primaryResume.fileUrl, '_blank'); }}>
                     <FileCheck2 className="mr-2 h-4 w-4" /> Preview
                   </Button>
@@ -166,6 +168,7 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
               id="resume-upload-new"
               className="hidden"
               accept=".pdf,.docx"
+              onClick={(e) => { (e.target as HTMLInputElement).value = "" }}
               onChange={(e) => { handleFileChange(e); }}
             />
             <label htmlFor="resume-upload-new" className="cursor-pointer flex flex-col items-center justify-center">
