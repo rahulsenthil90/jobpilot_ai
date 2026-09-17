@@ -177,7 +177,7 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
             </label>
             {file && (
               <div className="mt-6">
-                <Button onClick={handleUpload} disabled={uploading}>
+                <Button onClick={() => handleUpload()} disabled={uploading}>
                   {uploading ? `Uploading ${progress}%` : "Upload Resume"}
                 </Button>
               </div>
