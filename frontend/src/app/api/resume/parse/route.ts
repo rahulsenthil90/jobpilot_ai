@@ -5,6 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  console.log("🚀 [API] /api/resume/parse - Request received");
   try {
     const formData = await request.formData();
     const userId = formData.get('userId') as string;
@@ -13,15 +14,18 @@ export async function POST(request: Request) {
     const file = formData.get('file') as File;
 
     if (!userId || !resumeId || !file || !fileName) {
+      console.log("❌ [API] Missing parameters");
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
+    console.log(`📄 [API] Processing file: ${fileName} for user: ${userId}`);
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
     // 2. Initialize Gemini
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
+      console.log("❌ [API] GEMINI_API_KEY missing");
       throw new Error('GEMINI_API_KEY is not configured');
     }
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -91,25 +95,33 @@ export async function POST(request: Request) {
       }
     `;
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          data: buffer.toString('base64'),
-          mimeType: 'application/pdf',
+    console.log("🧠 [API] Sending PDF to Gemini AI for analysis...");
+    const result = await Promise.race([
+      model.generateContent([
+        {
+          inlineData: {
+            data: buffer.toString('base64'),
+            mimeType: 'application/pdf',
+          },
         },
-      },
-      prompt
-    ]);
+        prompt
+      ]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Gemini API timeout after 30 seconds")), 30000))
+    ]) as any;
+
+    console.log("✅ [API] Received response from Gemini AI");
     const responseText = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     
     let parsedData: any = {};
     try {
       parsedData = JSON.parse(responseText);
+      console.log("✅ [API] Successfully parsed Gemini JSON response");
     } catch (e) {
-      console.error("Failed to parse Gemini JSON:", responseText);
+      console.error("❌ [API] Failed to parse Gemini JSON. Raw text:", responseText);
       throw new Error("Failed to parse AI response");
     }
 
+    console.log("💾 [API] Saving extracted data to Firestore...");
     const batch = adminDb.batch();
 
     // 4. Clear existing extracted data for this user to prevent duplicates
@@ -171,11 +183,13 @@ export async function POST(request: Request) {
       scoreFeedback: parsedData.scoreFeedback || []
     });
 
+    console.log("💾 [API] Committing Firestore batch write...");
     await batch.commit();
 
+    console.log("🎉 [API] Successfully processed resume!");
     return NextResponse.json({ success: true, parsedData });
   } catch (error: any) {
-    console.error('Error analyzing resume:', error);
+    console.error('❌ [API] Error analyzing resume:', error);
     return NextResponse.json({ error: error.message || 'Failed to analyze resume' }, { status: 500 });
   }
 }

@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BriefcaseBusiness, CalendarDays, MapPin, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, MapPin, Plus, Search, SlidersHorizontal, Trash2, Zap, Check, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, Timestamp, where } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, Timestamp, where, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Progress } from "@/components/ui/progress";
 
 export default function ApplicationsPage() {
   const { user } = useAuth();
@@ -26,6 +28,11 @@ export default function ApplicationsPage() {
   const [position, setPosition] = useState("");
   const [location, setLocation] = useState("");
   const [status, setStatus] = useState("Applied");
+
+  // JD Analyzer state
+  const [analyzingJd, setAnalyzingJd] = useState(false);
+  const [activeAppForJd, setActiveAppForJd] = useState<any>(null);
+  const [jobDescription, setJobDescription] = useState("");
 
   const ping = (text: string) => {
     setNotice(text);
@@ -97,6 +104,45 @@ export default function ApplicationsPage() {
     } catch (error) {
       console.error("Error deleting application", error);
       ping("Failed to delete application");
+    }
+  };
+
+  const analyzeJobDescription = async () => {
+    if (!jobDescription.trim() || !activeAppForJd) {
+      ping("Please paste the job description first.");
+      return;
+    }
+    
+    setAnalyzingJd(true);
+    try {
+      const res = await fetch('/api/analyze/jd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid,
+          applicationId: activeAppForJd.id,
+          jobDescription: jobDescription
+        })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        ping("Analysis complete!");
+        // Update local state to show results immediately
+        setApplications(apps => apps.map(app => 
+          app.id === activeAppForJd.id 
+            ? { ...app, matchAnalysis: data.analysis, jobDescription: jobDescription }
+            : app
+        ));
+        setActiveAppForJd({ ...activeAppForJd, matchAnalysis: data.analysis, jobDescription: jobDescription });
+      } else {
+        ping(data.error || "Failed to analyze Job Description");
+      }
+    } catch (error) {
+      console.error("Error running JD analysis:", error);
+      ping("An error occurred during analysis.");
+    } finally {
+      setAnalyzingJd(false);
     }
   };
 
@@ -218,7 +264,14 @@ export default function ApplicationsPage() {
                     {row.companyName.substring(0, 2)}
                   </div>
                   <div>
-                    <h2 className="font-display font-semibold">{row.position}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-display font-semibold">{row.position}</h2>
+                      {row.matchAnalysis && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${row.matchAnalysis.matchPercentage >= 75 ? 'bg-green-100 text-green-700' : row.matchAnalysis.matchPercentage >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                          {row.matchAnalysis.matchPercentage}% Match
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                       <span>{row.companyName}</span>
                       {row.location && <span className="flex items-center gap-1"><MapPin className="size-3"/>{row.location}</span>}
@@ -228,9 +281,109 @@ export default function ApplicationsPage() {
                   <span className="w-fit rounded-sm bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
                     {row.status}
                   </span>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => deleteApplication(row.id)}>
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Dialog open={activeAppForJd?.id === row.id} onOpenChange={(isOpen) => {
+                      if (isOpen) {
+                        setActiveAppForJd(row);
+                        setJobDescription(row.jobDescription || "");
+                      } else {
+                        setActiveAppForJd(null);
+                      }
+                    }}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="hidden sm:flex">
+                          <Zap className="mr-2 size-3 text-amber-500" />
+                          {row.matchAnalysis ? "View Analysis" : "Analyze JD"}
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="font-display flex items-center gap-2">
+                            <Zap className="size-5 text-amber-500" />
+                            Resume vs Job Description Match
+                          </DialogTitle>
+                          <DialogDescription>
+                            Compare your resume against the JD for {row.position} at {row.companyName}.
+                          </DialogDescription>
+                        </DialogHeader>
+                        
+                        {!row.matchAnalysis ? (
+                          <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                              <Label htmlFor="jd">Paste the full Job Description here</Label>
+                              <Textarea 
+                                id="jd" 
+                                value={jobDescription} 
+                                onChange={(e) => setJobDescription(e.target.value)} 
+                                placeholder="Paste job description..." 
+                                className="min-h-[200px]"
+                              />
+                            </div>
+                            <Button onClick={analyzeJobDescription} disabled={analyzingJd} className="w-full">
+                              {analyzingJd ? "Analyzing with Gemini..." : "Generate AI Analysis"}
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="grid gap-6 py-4">
+                            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border">
+                              <div>
+                                <h4 className="font-semibold text-sm text-muted-foreground">Match Score</h4>
+                                <p className="text-3xl font-display font-bold mt-1">{row.matchAnalysis.matchPercentage}%</p>
+                              </div>
+                              <Progress value={row.matchAnalysis.matchPercentage} className="w-1/2 h-3" />
+                            </div>
+                            
+                            {row.matchAnalysis.missingSkills && row.matchAnalysis.missingSkills.length > 0 && (
+                              <div>
+                                <h4 className="font-semibold flex items-center gap-2 mb-2 text-red-600">
+                                  <AlertCircle className="size-4" /> Missing Keywords / Skills
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {row.matchAnalysis.missingSkills.map((skill: string, i: number) => (
+                                    <span key={i} className="bg-red-50 text-red-700 text-xs px-2.5 py-1 rounded-md border border-red-200">
+                                      {skill}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div>
+                              <h4 className="font-semibold flex items-center gap-2 mb-2 text-primary">
+                                <Check className="size-4" /> ATS Optimization
+                              </h4>
+                              <p className="text-sm text-muted-foreground leading-relaxed">
+                                {row.matchAnalysis.atsAnalysis}
+                              </p>
+                            </div>
+
+                            <div className="bg-amber-50/50 border border-amber-200/50 p-4 rounded-lg">
+                              <h4 className="font-semibold text-amber-900 mb-2">Strategic Recommendation</h4>
+                              <p className="text-sm text-amber-800 leading-relaxed">
+                                {row.matchAnalysis.recommendation}
+                              </p>
+                            </div>
+                            
+                            <Button variant="outline" onClick={() => {
+                              // Allow re-analyzing by clearing the analysis locally
+                              const confirmReanalyze = confirm("Do you want to re-analyze with a different Job Description?");
+                              if (confirmReanalyze) {
+                                setActiveAppForJd({...row, matchAnalysis: null});
+                                setApplications(apps => apps.map(app => 
+                                  app.id === row.id ? { ...app, matchAnalysis: null } : app
+                                ));
+                              }
+                            }} className="mt-2 text-xs h-8">
+                              Re-analyze JD
+                            </Button>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => deleteApplication(row.id)}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
               {filtered.length === 0 && (
