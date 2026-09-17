@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       throw new Error('GEMINI_API_KEY is not configured');
     }
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
     // 3. Prompt Gemini with the PDF directly as inlineData
     const prompt = `
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
         },
         prompt
       ]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Gemini API timeout after 30 seconds")), 30000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Gemini API timeout after 120 seconds")), 120000))
     ]) as any;
 
     console.log("✅ [API] Received response from Gemini AI");
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     const batch = adminDb.batch();
 
     // 4. Clear existing extracted data for this user to prevent duplicates
-    const collectionsToClear = ['experiences', 'education', 'projects'];
+    const collectionsToClear = ['experiences', 'education', 'projects', 'skills'];
     for (const colName of collectionsToClear) {
       const snapshot = await adminDb.collection(colName).where('userId', '==', userId).get();
       snapshot.forEach(doc => {
@@ -155,6 +155,19 @@ export async function POST(request: Request) {
       }
     }
 
+    if (parsedData.skills && Array.isArray(parsedData.skills)) {
+      for (const skill of parsedData.skills) {
+        const ref = adminDb.collection('skills').doc();
+        batch.set(ref, { 
+          name: skill, 
+          category: 'Business Analysis', 
+          proficiency: 'Intermediate', 
+          userId, 
+          createdAt: now 
+        });
+      }
+    }
+
     // 6. Update Profile
     const profileRef = adminDb.collection('profiles').doc(userId);
     const profileDoc = await profileRef.get();
@@ -166,6 +179,17 @@ export async function POST(request: Request) {
     if (parsedData.linkedin && !profileDoc.data()?.linkedin) profileUpdates.linkedin = parsedData.linkedin;
     if (parsedData.github && !profileDoc.data()?.github) profileUpdates.github = parsedData.github;
     if (parsedData.portfolio && !profileDoc.data()?.portfolio) profileUpdates.portfolio = parsedData.portfolio;
+    
+    // Extract Professional Details from experience
+    if (parsedData.experience && parsedData.experience.length > 0) {
+      const latestExp = parsedData.experience[0];
+      if (!profileDoc.data()?.currentJobTitle) profileUpdates.currentJobTitle = latestExp.jobTitle || '';
+      if (!profileDoc.data()?.currentCompany) profileUpdates.currentCompany = latestExp.company || '';
+      if (parsedData.experience.length > 1) {
+        const prevExp = parsedData.experience[1];
+        if (!profileDoc.data()?.previousCompany) profileUpdates.previousCompany = prevExp.company || '';
+      }
+    }
     
     if (Object.keys(profileUpdates).length > 0) {
       batch.set(profileRef, profileUpdates, { merge: true });

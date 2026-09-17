@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { storage, db } from "@/lib/firebase";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { collection, addDoc, getDocs, query, where, orderBy } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, where } from "firebase/firestore";
 
-import { Check, FileCheck2, FileText, Upload } from "lucide-react";
+import { Check, Download, FileCheck2, FileText, Trash2, Upload } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -127,7 +127,19 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
     }
   };
 
-  const primaryResume = resumes.find(r => r.isPrimary) || resumes[0];
+  const deleteResume = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this resume record?")) return;
+    try {
+      await deleteDoc(doc(db, "resumes", id));
+      setResumes(prev => prev.filter(r => r.id !== id));
+      ping("Resume deleted");
+    } catch (error) {
+      console.error("Error deleting resume", error);
+      setError("Failed to delete resume");
+    }
+  };
+
+  const primaryResume = resumes[0];
 
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -223,9 +235,20 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
                     <FileText className="size-4 shrink-0 text-muted-foreground" />
                     <span className="truncate text-sm">{r.fileName}</span>
                   </div>
-                  {r.fileUrl && (
-                    <Button variant="ghost" size="sm" onClick={() => window.open(r.fileUrl, '_blank')}>View</Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {r.fileUrl ? (
+                      <Button variant="ghost" size="icon" onClick={() => window.open(r.fileUrl, '_blank')} title="Download">
+                        <Download className="size-4 text-muted-foreground" />
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="icon" disabled title="No file stored">
+                        <Download className="size-4 text-muted-foreground opacity-50" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" onClick={() => deleteResume(r.id)} title="Delete">
+                      <Trash2 className="size-4 text-muted-foreground hover:text-destructive transition-colors" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

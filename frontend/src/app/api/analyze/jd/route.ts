@@ -59,7 +59,7 @@ export async function POST(request: Request) {
       throw new Error('GEMINI_API_KEY is not configured');
     }
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
     // 3. Prompt Gemini
     const prompt = `
