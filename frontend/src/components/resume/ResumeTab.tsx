@@ -54,8 +54,9 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
     }
   };
 
-  const handleUpload = async () => {
-    if (!file || !user) return;
+  const handleUpload = async (fileToUpload?: File) => {
+    const targetFile = fileToUpload || file;
+    if (!targetFile || !user) return;
     setUploading(true);
     setError("");
     setSuccess("");
@@ -69,14 +70,14 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
       // Save resume metadata to Firestore (no fileUrl since it's memory-only)
       const docRef = await addDoc(collection(db, "resumes"), {
         userId: user.uid,
-        fileName: file.name,
+        fileName: targetFile.name,
         fileUrl: "", 
         uploadedAt: new Date().toISOString(),
         status: "pending_analysis",
         isPrimary: resumes.length === 0
       });
 
-      setResumes([{ id: docRef.id, fileName: file.name, fileUrl: "", uploadedAt: new Date().toISOString(), isPrimary: resumes.length === 0, status: "pending_analysis" }, ...resumes]);
+      setResumes([{ id: docRef.id, fileName: targetFile.name, fileUrl: "", uploadedAt: new Date().toISOString(), isPrimary: resumes.length === 0, status: "pending_analysis" }, ...resumes]);
       setSuccess("Resume uploaded! Analyzing with AI...");
       ping("Resume uploaded successfully! Analyzing...");
 
@@ -84,8 +85,8 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
       const formData = new FormData();
       formData.append("userId", user.uid);
       formData.append("resumeId", docRef.id);
-      formData.append("fileName", file.name);
-      formData.append("file", file);
+      formData.append("fileName", targetFile.name);
+      formData.append("file", targetFile);
 
       // Call API route to parse it using Gemini directly
       const apiRes = await fetch('/api/resume/parse', {
@@ -137,7 +138,13 @@ export default function ResumeTab({ ping = (msg: string) => {} }: { ping?: (msg:
                   id="resume-upload-replace"
                   className="hidden"
                   accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  onChange={(e) => { handleFileChange(e); setTimeout(handleUpload, 100); }}
+                  onChange={(e) => { 
+                    handleFileChange(e); 
+                    if (e.target.files && e.target.files[0]) {
+                      const file = e.target.files[0];
+                      setTimeout(() => handleUpload(file), 100); 
+                    }
+                  }}
                 />
                 <label htmlFor="resume-upload-replace">
                   <Button variant="outline" asChild onClick={() => ping("Choose a new resume file")}>
