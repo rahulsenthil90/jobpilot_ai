@@ -129,10 +129,10 @@ export default function DashboardPage() {
             <p className="mt-3 max-w-2xl text-sm text-primary-foreground/80 sm:text-base">A complete profile allows our AI to tailor your resumes and cover letters perfectly to each job description.</p>
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button variant="default" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90" asChild>
+            <Button variant="hero" asChild>
               <Link href="/resume">Update profile <ChevronRight className="ml-1 h-4 w-4" /></Link>
             </Button>
-            <Button variant="outline" className="border-primary-foreground/30 hover:bg-primary-foreground/10 text-primary-foreground" onClick={() => ping("Feature coming soon")}>View recommendations</Button>
+            <Button variant="heroOutline" onClick={() => ping("Feature coming soon")}>View recommendations</Button>
           </div>
         </section>
 
