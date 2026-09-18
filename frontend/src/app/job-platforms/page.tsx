@@ -251,6 +251,13 @@ export default function JobPlatformsPage() {
               ) : jobsError ? (
                 <div className="p-5 text-center text-red-500 text-sm">
                   {jobsError}
+                  {jobsError.includes('RapidAPI') || jobsError.includes('RAPIDAPI') ? (
+                    <div className="mt-4 text-left text-muted-foreground border-t border-red-200 pt-4">
+                      <strong>Action required:</strong><br/>
+                      1. Go to RapidAPI and subscribe to the "LinkedIn Job Search API"<br/>
+                      2. Add <code>RAPIDAPI_KEY=your_key</code> to your `.env.local` or Vercel Environment Variables.
+                    </div>
+                  ) : null}
                 </div>
               ) : matches.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground text-sm">
