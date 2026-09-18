@@ -35,15 +35,14 @@ const platforms: Platform[] = [
   { name: "Indeed", url: "https://www.indeed.com/", color: "IN", description: "Review broad job matches and complete applications on Indeed." },
 ];
 
-const sampleMatches = [
-  { role: "Senior Product Designer", company: "Atlassian", match: 94, location: "Bengaluru · Hybrid", source: "LinkedIn", url: "https://www.linkedin.com/jobs/" },
-  { role: "Product Design Lead", company: "Razorpay", match: 89, location: "Bengaluru · Hybrid", source: "Naukri", url: "https://www.naukri.com/" },
-  { role: "UX Designer II", company: "Microsoft", match: 86, location: "India · Remote", source: "Indeed", url: "https://www.indeed.com/" },
-];
+type JobMatch = { role: string; company: string; match: number; location: string; source: string; url: string; };
 
 export default function JobPlatformsPage() {
   const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [jobsError, setJobsError] = useState("");
+  const [matches, setMatches] = useState<JobMatch[]>([]);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [enabled, setEnabled] = useState<Record<string, boolean>>({ LinkedIn: true, Naukri: true, Indeed: true });
@@ -78,10 +77,25 @@ export default function JobPlatformsPage() {
         if (prefsDoc.exists()) {
           setEnabled(current => ({ ...current, ...prefsDoc.data() }));
         }
+
+        // Fetch jobs from RapidAPI integration
+        setLoadingJobs(true);
+        const res = await fetch('/api/jobs/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.uid })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setJobsError(data.error || "Failed to fetch jobs");
+        } else {
+          setMatches(data.jobs || []);
+        }
       } catch (err) {
-        console.error("Failed to load preferences:", err);
+        console.error("Failed to load preferences or jobs:", err);
       } finally {
         setLoading(false);
+        setLoadingJobs(false);
       }
     };
     
@@ -228,22 +242,45 @@ export default function JobPlatformsPage() {
           </section>
           <section className="rounded-lg border border-border bg-card">
             <div className="border-b border-border p-5"><h2 className="font-display font-semibold">Suggested today</h2></div>
-            <div className="divide-y divide-border">
-              {sampleMatches.map((job) => (
-                <div key={job.company} className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-display text-sm font-semibold">{job.role}</h3>
-                      <p className="mt-1 text-xs text-muted-foreground">{job.company}</p>
-                    </div>
-                    <span className="rounded-sm bg-accent px-2 py-1 text-xs font-bold text-accent-foreground">{job.match}%</span>
-                  </div>
-                  <p className="mt-3 flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="size-3" />{job.location}</p>
-                  <Button variant="outline" size="sm" className="mt-4 w-full" asChild>
-                    <a href={job.url} target="_blank" rel="noreferrer">Review on {job.source}<ArrowUpRight className="ml-2 size-3" /></a>
-                  </Button>
+            <div className="divide-y divide-border min-h-[300px]">
+              {loadingJobs ? (
+                <div className="p-8 text-center text-muted-foreground flex flex-col items-center">
+                  <Loader2 className="size-6 animate-spin mb-4 text-primary" />
+                  <p className="text-sm">Searching global networks...</p>
                 </div>
-              ))}
+              ) : jobsError ? (
+                <div className="p-5 text-center text-red-500 text-sm">
+                  {jobsError}
+                  {jobsError.includes('RAPIDAPI') && (
+                    <div className="mt-4 text-left text-muted-foreground">
+                      <strong>Action required:</strong><br/>
+                      1. Create a free account at RapidAPI.com<br/>
+                      2. Subscribe to the "JSearch" API<br/>
+                      3. Add <code>RAPIDAPI_KEY=your_key</code> to your Vercel Environment Variables.
+                    </div>
+                  )}
+                </div>
+              ) : matches.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground text-sm">
+                  No matching jobs found today. Try broadening your rules.
+                </div>
+              ) : (
+                matches.map((job, idx) => (
+                  <div key={idx} className="p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-display text-sm font-semibold">{job.role}</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">{job.company}</p>
+                      </div>
+                      <span className="rounded-sm bg-accent px-2 py-1 text-xs font-bold text-accent-foreground">{job.match}%</span>
+                    </div>
+                    <p className="mt-3 flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="size-3" />{job.location}</p>
+                    <Button variant="outline" size="sm" className="mt-4 w-full" asChild>
+                      <a href={job.url} target="_blank" rel="noreferrer">Review on {job.source}<ArrowUpRight className="ml-2 size-3" /></a>
+                    </Button>
+                  </div>
+                ))
+              )}
             </div>
           </section>
           <section className="flex items-start gap-3 rounded-lg border border-border bg-card p-5">
