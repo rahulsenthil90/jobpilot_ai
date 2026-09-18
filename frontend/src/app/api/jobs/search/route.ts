@@ -15,14 +15,24 @@ export async function POST(request: Request) {
     }
 
     // 1. Fetch user's profile to build the search context
+    // 1. Fetch user's profile and application rules to build the search context
     const profileDoc = await adminDb.collection('profiles').doc(userId).get();
-    let jobTitle = "Professional";
-    let location = "Remote";
+    const rulesDoc = await adminDb.collection('application_rules').doc(userId).get();
+    
+    let jobTitle = "Software Engineer";
+    let location = "United States";
     
     if (profileDoc.exists) {
       const data = profileDoc.data();
-      jobTitle = data?.currentJobTitle || (data?.targetRoles && data.targetRoles.length > 0 ? data.targetRoles[0] : "Professional");
-      location = data?.location || "Remote";
+      jobTitle = data?.currentJobTitle || (data?.targetRoles && data.targetRoles.length > 0 ? data.targetRoles[0] : "Software Engineer");
+      location = data?.location || "United States";
+    }
+
+    if (rulesDoc.exists) {
+      const rules = rulesDoc.data();
+      if (rules?.preferred_locations && rules.preferred_locations.length > 0) {
+        location = rules.preferred_locations.join(", ");
+      }
     }
 
     let searchQuery = jobTitle;
