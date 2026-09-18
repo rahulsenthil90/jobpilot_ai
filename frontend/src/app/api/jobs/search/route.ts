@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(request: Request) {
   try {
@@ -92,7 +92,8 @@ export async function POST(request: Request) {
 
     // 3. Normalize and evaluate matches via Gemini AI
     console.log(`[Job API] Evaluating matches using Gemini...`);
-    const ai = new GoogleGenAI({ apiKey: geminiKey });
+    const genAI = new GoogleGenerativeAI(geminiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const jobs = await Promise.all(jobsList.map(async (job: any) => {
       let matchScore = 85;
@@ -114,12 +115,9 @@ Description: ${job.description_text || "No description provided."}
 
 Return ONLY a single integer representing the match score (e.g. 92). Do not include any other text or characters.`;
 
-        const evalResponse = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
-            contents: prompt
-        });
+        const evalResponse = await model.generateContent(prompt);
 
-        const scoreText = evalResponse.text?.replace(/[^0-9]/g, '');
+        const scoreText = evalResponse.response.text()?.replace(/[^0-9]/g, '');
         if (scoreText) {
           const score = parseInt(scoreText, 10);
           if (!isNaN(score) && score >= 0 && score <= 100) {

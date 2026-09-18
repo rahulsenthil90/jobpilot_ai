@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(request: Request) {
   try {
@@ -34,7 +34,8 @@ export async function POST(request: Request) {
       skillsList = data?.skills?.map((s: any) => s.name).join(", ") || "";
     }
 
-    const ai = new GoogleGenAI({ apiKey: geminiKey });
+    const genAI = new GoogleGenerativeAI(geminiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `You are an expert HR job matching system. 
 Analyze the provided job description against the candidate's resume and skills.
@@ -57,12 +58,9 @@ Respond with ONLY a raw JSON object containing the following keys (no markdown f
 }
 `;
 
-    const evalResponse = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt
-    });
+    const evalResponse = await model.generateContent(prompt);
 
-    let jsonText = evalResponse.text || "{}";
+    let jsonText = evalResponse.response.text() || "{}";
     if (jsonText.startsWith("\`\`\`json")) {
         jsonText = jsonText.replace(/\`\`\`json\n?/, "").replace(/\`\`\`$/, "");
     } else if (jsonText.startsWith("\`\`\`")) {
