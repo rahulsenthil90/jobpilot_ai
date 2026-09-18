@@ -33,6 +33,9 @@ export async function POST(request: Request) {
       if (rules?.preferred_locations && rules.preferred_locations.length > 0) {
         location = rules.preferred_locations.join(", ");
       }
+      if (rules?.preferred_job_title && rules.preferred_job_title.trim() !== "") {
+        jobTitle = rules.preferred_job_title.trim();
+      }
     }
 
     let searchQuery = jobTitle;

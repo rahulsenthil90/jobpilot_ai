@@ -49,6 +49,7 @@ export default function JobPlatformsPage() {
   const [automation, setAutomation] = useState(false);
   const [match, setMatch] = useState(85);
   const [location, setLocation] = useState("Bengaluru, Remote");
+  const [jobTitle, setJobTitle] = useState("Software Engineer");
   const [workMode, setWorkMode] = useState("Remote, Hybrid");
   const [salary, setSalary] = useState("1200000");
   const [dailyLimit, setDailyLimit] = useState("5");
@@ -68,6 +69,7 @@ export default function JobPlatformsPage() {
           setAutomation(rules.enabled);
           setMatch(rules.minimum_match);
           setLocation((rules.preferred_locations || []).join(", "));
+          setJobTitle(rules.preferred_job_title || "Software Engineer");
           setWorkMode((rules.work_modes || []).join(", "));
           setSalary(String(rules.minimum_salary || "1200000"));
           setDailyLimit(String(rules.daily_limit || "5"));
@@ -114,6 +116,7 @@ export default function JobPlatformsPage() {
         enabled: automation,
         minimum_match: match,
         preferred_locations: locations,
+        preferred_job_title: jobTitle.trim(),
         work_modes: modes,
         minimum_salary: Math.max(0, Number(salary) || 0),
         daily_limit: Math.min(25, Math.max(1, Number(dailyLimit) || 1)),
@@ -201,11 +204,15 @@ export default function JobPlatformsPage() {
                 </div>
                 <Slider id="match-score" value={[match]} onValueChange={(value) => setMatch(value[0] ?? 85)} min={50} max={100} step={1} />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="locations">Preferred locations</Label>
-                <Input id="locations" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Bengaluru, Remote" />
+              <div className="space-y-1.5">
+                <Label>Preferred job title</Label>
+                <Input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g. Data Analyst" />
               </div>
-              <div className="grid gap-2">
+              <div className="space-y-1.5">
+                <Label>Preferred locations</Label>
+                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Remote, NYC" />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="work-mode">Work modes</Label>
                 <Input id="work-mode" value={workMode} onChange={(event) => setWorkMode(event.target.value)} placeholder="Remote, Hybrid" />
               </div>
