@@ -2,6 +2,7 @@
 
 import { ArrowRight, BriefcaseBusiness, FileSearch, FileText, Mic2, Send, Sparkles, WandSparkles } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import AppLayout, { WorkspaceHeader } from "@/components/layout/AppLayout";
 import { Notice } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -15,13 +16,49 @@ const tools = [
 ];
 
 export default function AIAssistancePage() {
-  const [selected, setSelected] = useState("Review my resume");
+  const { user } = useAuth();
+  const [selected, setSelected] = useState("Check my job fit");
   const [prompt, setPrompt] = useState("");
   const [notice, setNotice] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [error, setError] = useState("");
   
   const run = () => {
     setNotice(prompt.trim() ? "Your AI workspace is preparing a response" : "Add a few details to continue");
     window.setTimeout(() => setNotice(""), 2200);
+  };
+
+  const analyzeJob = async () => {
+    if (!prompt.trim()) {
+      setError("Please paste a job description first.");
+      return;
+    }
+    if (!user) {
+      setError("Please sign in first.");
+      return;
+    }
+    
+    setAnalyzing(true);
+    setError("");
+    setAnalysisResult(null);
+
+    try {
+      const res = await fetch('/api/assistance/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid, jobDescription: prompt })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to analyze job");
+      }
+      setAnalysisResult(data.result);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   return (
@@ -68,37 +105,90 @@ export default function AIAssistancePage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
-          <div className="flex items-center gap-3 border-b border-border pb-4">
-            <span className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground">
-              <WandSparkles/>
-            </span>
-            <div>
-              <h2 className="font-display font-semibold">{selected}</h2>
-              <p className="text-xs text-muted-foreground">Your details stay within this workspace.</p>
-            </div>
+        <section className="flex flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <div className="border-b border-border p-4 sm:p-5">
+            <h2 className="font-display font-semibold">Workspace</h2>
+            {selected === "Check my job fit" ? (
+              <p className="mt-1 text-sm text-muted-foreground">Paste a job description below and our AI will analyze your match score and missing skills.</p>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">Add details below to guide the AI.</p>
+            )}
           </div>
           
-          <div className="py-6">
-            <label htmlFor="ai-prompt" className="text-sm font-semibold">What would you like help with?</label>
-            <Textarea 
-              id="ai-prompt" 
-              value={prompt} 
-              onChange={(e) => setPrompt(e.target.value)} 
-              className="mt-3 min-h-[11rem] resize-none" 
-              placeholder="Paste a job description or tell JobPilot what you want to improve..."
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              {["Make it concise", "Highlight impact", "Match this role"].map(item => (
-                <Button key={item} variant="secondary" size="sm" onClick={() => setPrompt(item)}>
-                  {item}
-                </Button>
-              ))}
-            </div>
+          <div className="flex-1 p-4 sm:p-5">
+            {selected === "Check my job fit" ? (
+              <>
+                <Textarea 
+                  value={prompt} 
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="Paste the full job description here..." 
+                  className="h-[250px] resize-none border-0 bg-secondary/50 p-4 focus-visible:ring-1" 
+                />
+                
+                {error && <div className="mt-4 p-3 bg-red-500/10 text-red-500 text-sm rounded">{error}</div>}
+                
+                {analysisResult && (
+                  <div className="mt-6 space-y-4 rounded-lg bg-secondary/30 p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-lg">
+                        {analysisResult.matchScore}%
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">Match Score</h3>
+                        <p className="text-sm text-muted-foreground">Based on your resume and skills</p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Required Skills</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {analysisResult.requiredSkills?.map((skill: string, i: number) => (
+                          <span key={i} className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {analysisResult.missingSkills?.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2 text-destructive">Missing Skills to Learn</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {analysisResult.missingSkills.map((skill: string, i: number) => (
+                            <span key={i} className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive border border-destructive/20">
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="pt-2 border-t border-border/50">
+                      <p className="text-sm text-muted-foreground">{analysisResult.summary}</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <Textarea 
+                value={prompt} 
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="E.g., I'm applying for a Senior Frontend role at Stripe. Help me focus my experience on performance and component architecture." 
+                className="h-full min-h-[250px] resize-none border-0 bg-secondary/50 p-4 focus-visible:ring-1" 
+              />
+            )}
           </div>
           
-          <div className="flex justify-end border-t border-border pt-4">
-            <Button onClick={run}>Generate <Send className="ml-2 size-4" /></Button>
+          <div className="border-t border-border p-4 sm:p-5">
+            {selected === "Check my job fit" ? (
+               <Button className="w-full sm:w-auto" onClick={analyzeJob} disabled={analyzing}>
+                 {analyzing ? <span className="animate-pulse">Analyzing...</span> : <><WandSparkles className="mr-2 size-4" /> Analyze Job Fit</>}
+               </Button>
+            ) : (
+               <Button className="w-full sm:w-auto" onClick={run}>
+                 <Send className="mr-2 size-4" /> Run AI tool
+               </Button>
+            )}
           </div>
         </section>
       </div>
