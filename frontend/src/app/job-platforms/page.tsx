@@ -251,14 +251,6 @@ export default function JobPlatformsPage() {
               ) : jobsError ? (
                 <div className="p-5 text-center text-red-500 text-sm">
                   {jobsError}
-                  {jobsError.includes('RAPIDAPI') && (
-                    <div className="mt-4 text-left text-muted-foreground">
-                      <strong>Action required:</strong><br/>
-                      1. Create a free account at RapidAPI.com<br/>
-                      2. Subscribe to the "JSearch" API<br/>
-                      3. Add <code>RAPIDAPI_KEY=your_key</code> to your Vercel Environment Variables.
-                    </div>
-                  )}
                 </div>
               ) : matches.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground text-sm">
